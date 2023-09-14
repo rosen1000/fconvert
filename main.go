@@ -1,38 +1,22 @@
 package main
 
-// #include <./lib.h>
-// typedef int (*intFunc) ();
-//
-// int
-// bridge_int_func(intFunc f)
-// {
-//		return f();
-// }
-//
-// int fortytwo()
-// {
-//	    return 42;
-// }
-import "C"
-
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
-	"rsc.io/getopt"
 	"strings"
 	"sync"
 	"time"
+
+	"rsc.io/getopt"
 )
 
 var cleanup = flag.Bool("cleanup", false, "Clean up converted files")
 var wg = new(sync.WaitGroup)
 
 func init() {
-	// f := C.intFunc(C.fortytwo)
-	// fmt.Println(C.bridge_int_func(f))
-	fmt.Println(C.two())
 	getopt.Alias("c", "cleanup")
 	flag.Usage = func() {
 		fmt.Printf("Usage:\n%v <options...> [format] [files...]\n\nOptions:\n", os.Args[0])
@@ -42,7 +26,6 @@ func init() {
 }
 
 func main() {
-	fmt.Println(*cleanup)
 	now := time.Now()
 	format := flag.Args()[0]
 	for _, file := range flag.Args()[1:] {
@@ -54,19 +37,29 @@ func main() {
 }
 
 func convertFile(fileName string, format string) {
-	// TODO: Chain command benchmark?
-	// ffmpeg -i file1.jpg file1.png -i file2.jpg file2.png
+	defer wg.Done()
 	cmd := exec.Command("ffmpeg", "-hide_banner", "-i", fileName, formatName(fileName, format))
+	errb := new(bytes.Buffer)
+	cmd.Stderr = errb
 	err := cmd.Run()
 	if err != nil {
-		output, _ := cmd.Output()
-		fmt.Println(output)
-		fmt.Println(err.Error())
-		os.Exit(1)
+		str := errb.String()
+		if strings.Contains(str, "already exists") {
+			fmt.Printf("Failed: %v already exists\n", formatName(fileName, format))
+		} else if strings.Contains(str, "No such") {
+			fmt.Printf("Failed: %v doesn't exist\n", fileName)
+		} else {
+			fmt.Println(errb.String())
+		}
+		return
 	}
-	wg.Done()
 
-	// fmt.Printf("Formated %v\n", fileName)
+	if *cleanup {
+		err := os.Remove(fileName)
+		if err != nil {
+			fmt.Printf("Unable to remove %v (%v)\n", fileName, err.Error())
+		}
+	}
 }
 
 func formatName(fileName string, format string) string {
