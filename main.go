@@ -26,6 +26,13 @@ func init() {
 }
 
 func main() {
+	if flag.NArg() < 2 {
+		fmt.Println("Error: not enough arguments")
+		fmt.Println()
+		flag.Usage()
+		os.Exit(2)
+	}
+
 	now := time.Now()
 	format := flag.Args()[0]
 	for _, file := range flag.Args()[1:] {
