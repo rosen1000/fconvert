@@ -58,7 +58,7 @@ func convertFile(fileName string, format string) {
 			os.MkdirAll(*output, 0755)
 		}
 	}
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-i", fileName, path.Join(*output, formatName(fileName, format)))
+	cmd := exec.Command("ffmpeg", "-hide_banner", "-i", fileName, path.Join(*output, path.Base(formatName(fileName, format))))
 	errb := new(bytes.Buffer)
 	cmd.Stderr = errb
 	err := cmd.Run()
