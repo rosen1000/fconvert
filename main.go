@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
 	"rsc.io/getopt"
@@ -17,7 +16,6 @@ import (
 var cleanup = flag.Bool("cleanup", false, "Clean up converted files")
 var output = flag.String("out", "", "Path for converted files to be placed")
 var verbose = flag.Bool("verbose", false, "Enable verbose logging")
-var wg = new(sync.WaitGroup)
 
 func init() {
 	getopt.Alias("c", "cleanup")
@@ -42,16 +40,13 @@ func main() {
 	now := time.Now()
 	format := flag.Args()[0]
 	for _, file := range flag.Args()[1:] {
-		wg.Add(1)
-		go convertFile(file, format)
+		convertFile(file, format)
 	}
-	wg.Wait()
 	fmt.Printf("Done! (%vms)\n", time.Since(now).Milliseconds())
 }
 
 func convertFile(fileName string, format string) {
 	vlog("Converting " + fileName + "...")
-	defer wg.Done()
 	if *output != "" {
 		if _, err := os.Stat(*output); err != nil {
 			vlog("Making path: " + *output)
