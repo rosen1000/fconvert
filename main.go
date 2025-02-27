@@ -13,14 +13,20 @@ import (
 	"rsc.io/getopt"
 )
 
+const VERSION = "1.0"
+
 var cleanup = flag.Bool("cleanup", false, "Clean up converted files")
 var output = flag.String("out", "", "Path for converted files to be placed")
 var verbose = flag.Bool("verbose", false, "Enable verbose logging")
+var force = flag.Bool("force", false, "Overwrite existing files")
+var bVersion = flag.Bool("version", false, "Display version")
 
 func init() {
 	getopt.Alias("c", "cleanup")
 	getopt.Alias("o", "out")
 	getopt.Alias("v", "verbose")
+	getopt.Alias("f", "force")
+	getopt.Alias("V", "version")
 	flag.Usage = func() {
 		fmt.Printf("Usage:\n%v <options...> [format] [files...]\n\nOptions:\n", os.Args[0])
 		getopt.PrintDefaults()
@@ -30,6 +36,9 @@ func init() {
 }
 
 func main() {
+	if *bVersion {
+		fmt.Printf("fconvert: %v\n", VERSION)
+	}
 	if flag.NArg() < 2 {
 		fmt.Println("Error: not enough arguments")
 		fmt.Println()
@@ -49,18 +58,34 @@ func convertFile(fileName string, format string) {
 	vlog("Converting " + fileName + "...")
 	if *output != "" {
 		if _, err := os.Stat(*output); err != nil {
-			vlog("Making path: " + *output)
+			vlog("	Making path: " + *output)
 			os.MkdirAll(*output, 0755)
 		}
 	}
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-i", fileName, path.Join(*output, path.Base(formatName(fileName, format))))
+
+	newName := path.Join(*output, formatName(fileName, format))
+	if _, err := os.Lstat(newName); err == nil {
+		if *force {
+			vlog("	Deleting " + newName + "...")
+			if err := os.Remove(newName); err != nil {
+				println("Can't delete: " + err.Error())
+				return
+			}
+		} else {
+			vlog("	Skipping " + fileName)
+			return
+		}
+	}
+
+	cmd := generateCommand(fileName, format)
 	errb := new(bytes.Buffer)
 	cmd.Stderr = errb
 	err := cmd.Run()
 	if err != nil {
 		str := errb.String()
+		fmt.Printf("ERROR on %v\n", fileName)
 		if strings.Contains(str, "already exists") {
-			fmt.Printf("Failed: %v already exists\n", formatName(fileName, format))
+			fmt.Printf("Failed: %v already exists\n", newName)
 		} else if strings.Contains(str, "No such") {
 			fmt.Printf("Failed: %v doesn't exist\n", fileName)
 		} else {
@@ -70,15 +95,30 @@ func convertFile(fileName string, format string) {
 	}
 
 	if *cleanup {
-		vlog("Deleting" + fileName + "...")
 		err := os.Remove(fileName)
 		if err != nil {
-			fmt.Printf("Unable to remove %v (%v)\n", fileName, err.Error())
+			fmt.Printf("	Unable to remove %v (%v)\n", fileName, err.Error())
 		}
-		vlog("Done deleting " + fileName)
+		vlog("	Deleted " + fileName)
 	}
 
-	vlog("Done ceonverting " + fileName + " -> " + formatName(fileName, format))
+	vlog("	Done ceonverting " + fileName + " -> " + newName)
+}
+
+func generateCommand(from, fmt string) *exec.Cmd {
+	to := path.Join(*output, path.Base(formatName(from, fmt)))
+	var cmd *exec.Cmd
+
+	switch fmt {
+	case "jxl":
+		vlog("	Using cjxl")
+		cmd = exec.Command("cjxl", from, to)
+	default:
+		vlog("	Using ffmpeg")
+		cmd = exec.Command("ffmpeg", "-hide_banner", "-hwaccel", "auto", "-i", from, to)
+	}
+
+	return cmd
 }
 
 func formatName(fileName string, format string) string {
