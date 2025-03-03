@@ -13,13 +13,14 @@ import (
 	"rsc.io/getopt"
 )
 
-const VERSION = "1.1"
+const VERSION = "1.2"
 
 var cleanup = flag.Bool("cleanup", false, "Clean up converted files")
 var output = flag.String("out", "", "Path for converted files to be placed")
 var verbose = flag.Bool("verbose", false, "Enable verbose logging")
 var force = flag.Bool("force", false, "Overwrite existing files")
 var bVersion = flag.Bool("version", false, "Display version")
+var progress = flag.Bool("progress", false, "Display progress")
 
 func init() {
 	getopt.Alias("c", "cleanup")
@@ -27,13 +28,19 @@ func init() {
 	getopt.Alias("v", "verbose")
 	getopt.Alias("f", "force")
 	getopt.Alias("V", "version")
+	getopt.Alias("p", "progress")
 	flag.Usage = func() {
 		fmt.Printf("Usage:\n%v <options...> [format] [files...]\n\nOptions:\n", os.Args[0])
 		getopt.PrintDefaults()
 	}
 	getopt.Parse()
-	vlog("Verbose mode enabled")
+	if *verbose {
+		println("Verbose mode enabled")
+	}
 }
+
+var i int
+var leng int = 1
 
 func main() {
 	if *bVersion {
@@ -48,10 +55,21 @@ func main() {
 
 	now := time.Now()
 	format := flag.Args()[0]
-	for _, file := range flag.Args()[1:] {
-		convertFile(file, format)
+	leng = len(flag.Args()[1:])
+	if *progress {
+		fmt.Printf("(0.00%%) 0/%v\n", leng)
 	}
-	fmt.Printf("Done! (%vms)\n", time.Since(now).Milliseconds())
+	for _i, file := range flag.Args()[1:] {
+		i = _i + 1
+		convertFile(file, format)
+		if *progress {
+			fmt.Print("\033[A")
+			fmt.Print("\033[G")
+			fmt.Print("\033[2K")
+			fmt.Printf("(%.2f%%) %v/%v\n", float32(i)/float32(leng)*100, i, leng)
+		}
+	}
+	fmt.Printf("Done! (%v)\n", time.Since(now))
 }
 
 func convertFile(fileName string, format string) {
@@ -132,6 +150,14 @@ func formatName(fileName string, format string) string {
 
 func vlog(text string) {
 	if *verbose {
-		println(text)
+		if *progress {
+			fmt.Print("\033[A")
+			fmt.Print("\033[G")
+			fmt.Print("\033[2K")
+			fmt.Println(text)
+			fmt.Printf("(%.2f%%) %v/%v\n", float32(i)/float32(leng)*100, i, leng)
+		} else {
+			fmt.Println(text)
+		}
 	}
 }
