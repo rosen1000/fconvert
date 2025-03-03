@@ -13,7 +13,7 @@ import (
 	"rsc.io/getopt"
 )
 
-const VERSION = "1.0"
+const VERSION = "1.1"
 
 var cleanup = flag.Bool("cleanup", false, "Clean up converted files")
 var output = flag.String("out", "", "Path for converted files to be placed")
@@ -113,6 +113,9 @@ func generateCommand(from, fmt string) *exec.Cmd {
 	case "jxl":
 		vlog("	Using cjxl")
 		cmd = exec.Command("cjxl", from, to)
+	case "mp4":
+		vlog("	Using ffmpeg (hevc)")
+		cmd = exec.Command("ffmpeg", "-hide_banner", "-hwaccel", "auto", "-i", from, "-c:v", "hevc", to)
 	default:
 		vlog("	Using ffmpeg")
 		cmd = exec.Command("ffmpeg", "-hide_banner", "-hwaccel", "auto", "-i", from, to)
